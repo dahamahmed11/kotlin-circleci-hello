@@ -1,0 +1,30 @@
+version: 2.1
+
+orbs:
+  continuation: circleci/continuation@0.3.1
+
+jobs:
+  tests:
+    docker:
+      - image: cimg/openjdk:17.0
+    steps:
+      - checkout
+
+      - run:
+          name: Make Gradle wrapper executable
+          command: chmod +x ./gradlew
+
+      - run:
+          name: Run unit tests
+          command: ./gradlew test
+          environment:
+            RUN_DB_TESTS: "1"
+
+      - continuation/continue:
+          configuration_path: ".circleci/build.yml"
+
+workflows:
+  version: 2
+  unit-tests:
+    jobs:
+      - tests
