@@ -60,50 +60,55 @@ jobs:
       - checkout
 
       - run:
-          name: Set environment and generate .env
-          command: |
-            set -eo pipefail
-            echo "BRANCH=$CIRCLE_BRANCH"
-            echo "TAG=$CIRCLE_TAG"
+        name: Set environment and generate .env
+        command: |
+          set -eo pipefail
 
-            if [ "$CIRCLE_BRANCH" = "dev" ]; then
-              ENVIRONMENT="development"
-              ENV_SUFFIX="_DEV"
-              echo "Using DEV environment"
-            elif [ -n "$CIRCLE_TAG" ] && [[ "$CIRCLE_TAG" == *"-rc"* ]]; then
-              ENVIRONMENT="staging"
-              ENV_SUFFIX="_STG"
-              echo "Using STAGING environment"
-            elif [ -n "$CIRCLE_TAG" ]; then
-              ENVIRONMENT="production"
-              ENV_SUFFIX="_PRD"
-              echo "Using PROD environment"
-            else
-              echo "ERROR: cannot detect environment"
-              exit 1
-            fi
+          echo "BRANCH=$CIRCLE_BRANCH"
+          echo "TAG=$CIRCLE_TAG"
 
-            rm -f .env
+          if [ "$CIRCLE_BRANCH" = "dev" ]; then
+            ENVIRONMENT="development"
+            ENV_SUFFIX="_DEV"
+            echo "Using DEV environment"
+          elif [ -n "$CIRCLE_TAG" ] && [[ "$CIRCLE_TAG" == *"-rc"* ]]; then
+            ENVIRONMENT="staging"
+            ENV_SUFFIX="_STG"
+            echo "Using STG environment"
+          elif [ -n "$CIRCLE_TAG" ]; then
+            ENVIRONMENT="production"
+            ENV_SUFFIX="_PRD"
+            echo "Using PROD environment"
+          else
+            echo "ERROR: cannot detect environment"
+            exit 1
+          fi
 
-            echo "-- GLOBAL VARS --"
-            env | grep "_GLOBAL" | grep -v "^GHA_" | while IFS='=' read -r k v; do
-              base="${k%_GLOBAL}"
-              echo "${base}=${v}" >> .env
-            done
+          rm -f .env
+          touch .env
 
-            echo "-- ENVIRONMENT VARS ${ENV_SUFFIX} --"
-            env | grep "${ENV_SUFFIX}$" | grep -v "^GHA_" | while IFS='=' read -r k v; do
-              base="${k%${ENV_SUFFIX}}"
-              echo "${base}=${v}" >> .env
-            done
+          echo "-- GLOBAL VARS --"
 
-            echo "Generated .env"
-            cat .env
+          env | grep "_GLOBAL" | grep -v "^GHA_" || true | while IFS='=' read -r k v; do
+            base="${k%_GLOBAL}"
+            echo "${base}=${v}" >> .env
+          done
 
-            DOCKER_TAG="${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
+          echo "-- ENVIRONMENT VARS ${ENV_SUFFIX} --"
 
-            echo "export DOCKER_TAG=${DOCKER_TAG}" >> env-exports
-            echo "export ENVIRONMENT=${ENVIRONMENT}" >> env-exports
+          env | grep "${ENV_SUFFIX}$" | grep -v "^GHA_" || true | while IFS='=' read -r k v; do
+            base="${k%${ENV_SUFFIX}}"
+            echo "${base}=${v}" >> .env
+          done
+
+          echo "Generated .env:"
+          cat .env
+
+          DOCKER_TAG="${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
+
+          echo "export DOCKER_TAG=${DOCKER_TAG}" >> env-exports
+          echo "export ENVIRONMENT=${ENVIRONMENT}" >> env-exports
+
 
       - persist_to_workspace:
           root: .
