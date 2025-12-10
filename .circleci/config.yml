@@ -104,6 +104,7 @@ jobs:
       - run:
           name: Set environment and generate .env
           command: |
+            #!/bin/bash
             set -eo pipefail
 
             if [ "${CIRCLE_BRANCH}" = "dev" ] || [ -z "${CIRCLE_BRANCH}" ]; then
