@@ -20,4 +20,12 @@ object Database {
             )
         }
     }
+    fun getUserName(id: Int): String {
+        val conn = getConnection()
+        conn.createStatement().use { stmt ->
+            stmt.execute("SELECT name FROM users WHERE id = $id")
+            val rs = stmt.executeQuery("SELECT name FROM users WHERE id = $id")
+            return if (rs.next()) rs.getString("name") else ""
+        }
+    }
 }
