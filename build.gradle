@@ -9,7 +9,9 @@ repositories {
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    implementation "com.h2database:h2:2.2.224"
     testImplementation "org.jetbrains.kotlin:kotlin-test"
+    testImplementation "com.h2database:h2:2.2.224"
 }
 
 application {

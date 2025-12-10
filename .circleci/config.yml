@@ -1,18 +1,25 @@
 version: 2.1
 
+parameters:
+  run_db_tests:
+    type: string
+    default: "0"
+
 workflows:
   ci_pipeline:
     jobs:
-      - build
-
-
+      - build:
+          run_db_tests: << pipeline.parameters.run_db_tests >>
 
 jobs:
-
 
   build:
     docker:
       - image: cimg/openjdk:17.0
+    parameters:
+      run_db_tests:
+        type: string
+        default: "0"
     steps:
       - checkout
 
@@ -23,6 +30,8 @@ jobs:
       - run:
           name: Build and Test Kotlin Project
           command: ./gradlew build
+          environment:
+            RUN_DB_TESTS: << parameters.run_db_tests >>
 
       - setup_remote_docker
 
