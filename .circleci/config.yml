@@ -15,15 +15,15 @@ workflows:
             # tags:
             #   only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
       
-      - build:
-          run_db_tests: << pipeline.parameters.run_db_tests >>
-          requires:
-            - sonarqube
-          filters:
-            branches:
-              only: dev
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
+      # - build:
+      #     run_db_tests: << pipeline.parameters.run_db_tests >>
+      #     requires:
+      #       - sonarqube
+      #     filters:
+      #       branches:
+      #         only: dev
+            # tags:
+            #   only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
       # - request_deployment_approval:
       #     requires:
       #       - build
@@ -32,13 +32,13 @@ workflows:
       #         ignore: /.*/
       #       tags:
       #         only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
-      - kustomize_release:
-          requires:
-            - build
-            - request_deployment_approval
-          filters:
-            branches:
-              ignore: /.*/
+      # - kustomize_release:
+      #     requires:
+      #       - build
+      #       - request_deployment_approval
+      #     filters:
+      #       branches:
+      #         ignore: /.*/
             # tags:
             #   only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
 
