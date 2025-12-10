@@ -12,8 +12,8 @@ workflows:
           filters:
             branches:
               only: dev
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
+            # tags:
+            #   only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
       
       - build:
           run_db_tests: << pipeline.parameters.run_db_tests >>
@@ -39,8 +39,8 @@ workflows:
           filters:
             branches:
               ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
+            # tags:
+            #   only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
 
 jobs:
 
@@ -58,44 +58,43 @@ jobs:
               exit 0
             fi
 
+  # odc:
+  #   docker:
+  #     - image: cimg/base:stable
+  #   steps:
+  #     - checkout
 
-  odc:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
+  #     - run:
+  #         name: Install Azure CLI
+  #         command: |
+  #           sudo apt-get update
+  #           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - run:
-          name: Install Azure CLI
-          command: |
-            sudo apt-get update
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  #     - run:
+  #         name: Run Dependency Check (ODC placeholder)
+  #         command: |
+  #           echo "Running ODC (dependency-check) placeholder..."
+  #           mkdir -p reports
+  #           echo "<html><body>Dummy ODC report</body></html>" > reports/dependency-check-report.html
 
-      - run:
-          name: Run Dependency Check (ODC placeholder)
-          command: |
-            echo "Running ODC (dependency-check) placeholder..."
-            mkdir -p reports
-            echo "<html><body>Dummy ODC report</body></html>" > reports/dependency-check-report.html
+  #     - store_artifacts:
+  #         path: reports
+  #         destination: odc-reports
 
-      - store_artifacts:
-          path: reports
-          destination: odc-reports
-
-      - run:
-          name: Upload ODC report to Azure Blob Storage (analog to GHA)
-          command: |
-            if [ -n "$AZURE_STORAGE_ACCOUNT_NAME" ] && [ -n "$AZURE_STORAGE_ACCOUNT_KEY" ] && [ -n "$AZURE_CONTAINER_NAME" ]; then
-              FILE_NAME="$(date +%Y-%m-%d)-${CIRCLE_PROJECT_USERNAME}-${CIRCLE_PROJECT_REPONAME}-${CIRCLE_TAG}-${CIRCLE_SHA1}.html"
-              az storage blob upload \
-                --account-name "$AZURE_STORAGE_ACCOUNT_NAME" \
-                --account-key "$AZURE_STORAGE_ACCOUNT_KEY" \
-                --container-name "$AZURE_CONTAINER_NAME" \
-                --file "./reports/dependency-check-report.html" \
-                --name "$FILE_NAME"
-            else
-              echo "Azure storage env vars not set, skipping upload."
-            fi
+  #     - run:
+  #         name: Upload ODC report to Azure Blob Storage
+  #         command: |
+  #           if [ -n "$AZURE_STORAGE_ACCOUNT_NAME" ] && [ -n "$AZURE_STORAGE_ACCOUNT_KEY" ] && [ -n "$AZURE_CONTAINER_NAME" ]; then
+  #             FILE_NAME="$(date +%Y-%m-%d)-${CIRCLE_PROJECT_USERNAME}-${CIRCLE_PROJECT_REPONAME}-${CIRCLE_TAG}-${CIRCLE_SHA1}.html"
+  #             az storage blob upload \
+  #               --account-name "$AZURE_STORAGE_ACCOUNT_NAME" \
+  #               --account-key "$AZURE_STORAGE_ACCOUNT_KEY" \
+  #               --container-name "$AZURE_CONTAINER_NAME" \
+  #               --file "./reports/dependency-check-report.html" \
+  #               --name "$FILE_NAME"
+  #           else
+  #             echo "Azure storage env vars not set, skipping upload."
+  #           fi
 
   build:
     docker:
