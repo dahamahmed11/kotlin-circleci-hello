@@ -106,7 +106,7 @@ jobs:
           command: |
             set -eo pipefail
 
-            if [ "$CIRCLE_BRANCH" = "dev" ]; then
+            if [ "${CIRCLE_BRANCH}" = "dev" ] || [ -z "${CIRCLE_BRANCH}" ]; then
               ENVIRONMENT="development"
               ENVIRONMENT_DISPLAY="Dev"
               ENV_SUFFIX="_DEV"
