@@ -12,8 +12,8 @@ workflows:
           filters:
             branches:
               only: dev
-            # tags:
-            #   only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
       
       # - build:
       #     run_db_tests: << pipeline.parameters.run_db_tests >>
@@ -123,7 +123,7 @@ jobs:
   #             HELM_RELEASE_REPO="$GHA_HELM_RELEASE_REPO"
   #             HELM_FOLDER="$GHA_HELM_PROJECT_DEV"
   #             KUSTOMIZE_FOLDER="$GHA_PROJECT_REPO_DEV"
-  #             ACR_NAME="${GHA_REGISTRY_NAME_DEV}.${GHA_REGISTRY_DOMAIN}"
+  #             ACR_NAME="${GHA_REGISTRYxxxx959a_NAME_DEV}.${GHA_REGISTRY_DOMAIN}"
   #             ACR_USERNAME="$ACR_USERNAME_DEV"
   #             ACR_PASSWORD="$ACR_PASSWORD_DEV"
   #             DOCKER_TAG="${GHA_REGISTRY_NAME_DEV}.${GHA_REGISTRY_DOMAIN}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
