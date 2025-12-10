@@ -1,19 +1,43 @@
 version: 2.1
 
+workflows:
+  ci_pipeline:
+    jobs:
+      - odc:
+      - build:
+          requires:
+            - odc
+
+
 jobs:
-  build-and-test:
+
+  odc:
     docker:
       - image: cimg/openjdk:17.0
     steps:
       - checkout
+      - run: |
+          echo "Running ODC Dependency Check"
+          echo "In real repo, use dependency-check CLI."
+
+  build:
+    docker:
+      - image: cimg/openjdk:17.0
+    steps:
+      - checkout
+
       - run:
           name: Make Gradle wrapper executable
           command: chmod +x ./gradlew
+
       - run:
-          name: Build and run tests
+          name: Build and Test Kotlin Project
           command: ./gradlew build
 
-workflows:
-  kotlin-ci:
-    jobs:
-      - build-and-test
+      - setup_remote_docker:
+          version: 20.10.23
+
+      - run:
+          name: Docker Build 
+          command: |
+            docker build -t kotlin-hello:latest .
