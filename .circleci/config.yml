@@ -24,6 +24,8 @@ jobs:
           name: Build and Test Kotlin Project
           command: ./gradlew build
 
+      - setup_remote_docker
+
       - run:
           name: Docker Build 
           command: |
