@@ -24,13 +24,6 @@ workflows:
               only: dev
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
-      # - request_deployment_approval:
-      #     requires:
-      #       - build
-      # - kustomize_release:
-      #     requires:
-      #       - build
-      #       - request_deployment_approval
 
 jobs:
 
@@ -42,15 +35,17 @@ jobs:
       - run:
           name: SonarQube scan
           command: |
+            echo "Running SonarQube scan..."
             if [ -z "$SONAR_HOST_URL" ] || [ -z "$SONAR_TOKEN" ]; then
-              echo "Skipping scan: SONAR vars not set."
+              echo "SONAR_HOST_URL or SONAR_TOKEN not set, skipping real scan."
               exit 0
             fi
-            echo "Running Sonar (placeholder)"
+
 
   build:
     docker:
       - image: cimg/openjdk:17.0
+
     parameters:
       run_db_tests:
         type: string
@@ -60,94 +55,87 @@ jobs:
       - checkout
 
       - run:
-        name: Set environment and generate .env
-        command: |
-          set -eo pipefail
+          name: Set environment and generate .env
+          command: |
+            set -eo pipefail
 
-          echo "BRANCH=$CIRCLE_BRANCH"
-          echo "TAG=$CIRCLE_TAG"
+            echo "BRANCH=$CIRCLE_BRANCH"
+            echo "TAG=$CIRCLE_TAG"
 
-          if [ "$CIRCLE_BRANCH" = "dev" ]; then
-            ENVIRONMENT="development"
-            ENV_SUFFIX="_DEV"
-            echo "Using DEV environment"
-          elif [ -n "$CIRCLE_TAG" ] && [[ "$CIRCLE_TAG" == *"-rc"* ]]; then
-            ENVIRONMENT="staging"
-            ENV_SUFFIX="_STG"
-            echo "Using STG environment"
-          elif [ -n "$CIRCLE_TAG" ]; then
-            ENVIRONMENT="production"
-            ENV_SUFFIX="_PRD"
-            echo "Using PROD environment"
-          else
-            echo "ERROR: cannot detect environment"
-            exit 1
-          fi
+            if [ "$CIRCLE_BRANCH" = "dev" ]; then
+              ENVIRONMENT="development"
+              ENV_SUFFIX="_DEV"
+              echo "Using DEV environment"
+            elif [ -n "$CIRCLE_TAG" ] && [[ "$CIRCLE_TAG" == *"-rc"* ]]; then
+              ENVIRONMENT="staging"
+              ENV_SUFFIX="_STG"
+              echo "Using STG environment"
+            elif [ -n "$CIRCLE_TAG" ]; then
+              ENVIRONMENT="production"
+              ENV_SUFFIX="_PRD"
+              echo "Using PROD environment"
+            else
+              echo "ERROR: cannot detect environment"
+              exit 1
+            fi
 
-          rm -f .env
-          touch .env
+            rm -f .env
+            touch .env
 
-          echo "-- GLOBAL VARS --"
+            echo "-- GLOBAL VARS --"
+            env | grep "_GLOBAL" | grep -v "^GHA_" || true | while IFS='=' read -r k v; do
+              base="${k%_GLOBAL}"
+              echo "${base}=${v}" >> .env
+            done
 
-          env | grep "_GLOBAL" | grep -v "^GHA_" || true | while IFS='=' read -r k v; do
-            base="${k%_GLOBAL}"
-            echo "${base}=${v}" >> .env
-          done
+            echo "-- ENV VARS ${ENV_SUFFIX} --"
+            env | grep "${ENV_SUFFIX}$" | grep -v "^GHA_" || true | while IFS='=' read -r k v; do
+              base="${k%${ENV_SUFFIX}}"
+              echo "${base}=${v}" >> .env
+            done
 
-          echo "-- ENVIRONMENT VARS ${ENV_SUFFIX} --"
+            echo "Generated .env:"
+            cat .env
 
-          env | grep "${ENV_SUFFIX}$" | grep -v "^GHA_" || true | while IFS='=' read -r k v; do
-            base="${k%${ENV_SUFFIX}}"
-            echo "${base}=${v}" >> .env
-          done
+            DOCKER_TAG="${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
 
-          echo "Generated .env:"
-          cat .env
-
-          DOCKER_TAG="${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
-
-          echo "export DOCKER_TAG=${DOCKER_TAG}" >> env-exports
-          echo "export ENVIRONMENT=${ENVIRONMENT}" >> env-exports
-
+            echo "export DOCKER_TAG=${DOCKER_TAG}"  >> env-exports
+            echo "export ENVIRONMENT=${ENVIRONMENT}" >> env-exports
 
       - persist_to_workspace:
           root: .
           paths:
-            - .env
             - env-exports
+            - .env
 
       - run:
           name: Make Gradle wrapper executable
           command: chmod +x ./gradlew
 
       - run:
-          name: Build & Test Kotlin project
+          name: Build & Test Kotlin
+          command: ./gradlew build
           environment:
             RUN_DB_TESTS: << parameters.run_db_tests >>
-          command: ./gradlew build
 
       - setup_remote_docker
 
       - run:
-          name: Docker build
+          name: Docker Build
           command: |
-            set -eo pipefail
             source env-exports
-
             EXTRA_ARGS=""
-            while IFS= read -r line; do
-              EXTRA_ARGS+=" --build-arg $line"
-            done < .env
-
-            docker build -t "${DOCKER_TAG}" ${EXTRA_ARGS} .
-
-      - run:
-          name: Login to DockerHub
-          command: |
-            echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+            if [ -f .env ]; then
+              while IFS= read -r i; do
+                EXTRA_ARGS+=" --build-arg $i"
+              done < .env
+            fi
+            echo "Building image: ${DOCKER_TAG}"
+            docker build . -t "${DOCKER_TAG}" ${EXTRA_ARGS}
 
       - run:
-          name: Push Docker image
+          name: Docker Login & Push to DockerHub
           command: |
             source env-exports
+            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
             docker push "${DOCKER_TAG}"
