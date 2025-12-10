@@ -1,1 +1,2 @@
+RUN_DB_TESTS = 0
 )Skipping DB tests because RUN_DB_TESTS=0
