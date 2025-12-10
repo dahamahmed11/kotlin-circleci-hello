@@ -27,20 +27,10 @@ workflows:
       # - request_deployment_approval:
       #     requires:
       #       - build
-      #     filters:
-      #       branches:
-      #         ignore: /.*/
-      #       tags:
-      #         only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
       # - kustomize_release:
       #     requires:
       #       - build
       #       - request_deployment_approval
-      #     filters:
-      #       branches:
-      #         ignore: /.*/
-      #       tags:
-      #         only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
 
 jobs:
 
@@ -52,43 +42,11 @@ jobs:
       - run:
           name: SonarQube scan
           command: |
-            echo "Running SonarQube scan..."
             if [ -z "$SONAR_HOST_URL" ] || [ -z "$SONAR_TOKEN" ]; then
-              echo "SONAR vars missing, skipping scan."
+              echo "Skipping scan: SONAR vars not set."
               exit 0
             fi
-
-  # odc:
-  #   docker:
-  #     - image: cimg/base:stable
-  #   steps:
-  #     - checkout
-  #     - run:
-  #         name: Install Azure CLI
-  #         command: |
-  #           sudo apt-get update
-  #           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-  #     - run:
-  #         name: Run Dependency Check (ODC placeholder)
-  #         command: |
-  #           echo "Running ODC placeholder..."
-  #           mkdir -p reports
-  #           echo "<html><body>Dummy ODC report</body></html>" > reports/dependency-check-report.html
-  #     - store_artifacts:
-  #         path: reports
-  #         destination: odc-reports
-  #     - run:
-  #         name: Upload ODC report to Azure Blob Storage
-  #         command: |
-  #           if [ -n "$AZURE_STORAGE_ACCOUNT_NAME" ] && [ -n "$AZURE_STORAGE_ACCOUNT_KEY" ] && [ -n "$AZURE_CONTAINER_NAME" ]; then
-  #             FILE_NAME="$(date +%Y-%m-%d)-${CIRCLE_PROJECT_USERNAME}-${CIRCLE_PROJECT_REPONAME}-${CIRCLE_TAG}-${CIRCLE_SHA1}.html"
-  #             az storage blob upload \
-  #               --account-name "$AZURE_STORAGE_ACCOUNT_NAME" \
-  #               --account-key "$AZURE_STORAGE_ACCOUNT_KEY" \
-  #               --container-name "$AZURE_CONTAINER_NAME" \
-  #               --file "./reports/dependency-check-report.html" \
-  #               --name "$FILE_NAME"
-  #           fi
+            echo "Running Sonar (placeholder)"
 
   build:
     docker:
@@ -104,114 +62,87 @@ jobs:
       - run:
           name: Set environment and generate .env
           command: |
-            #!/bin/bash -eo pipefail
+            set -eo pipefail
+            echo "BRANCH=$CIRCLE_BRANCH"
+            echo "TAG=$CIRCLE_TAG"
 
-            if [ "${CIRCLE_BRANCH}" = "dev" ] || [ -z "${CIRCLE_BRANCH}" ]; then
+            if [ "$CIRCLE_BRANCH" = "dev" ]; then
               ENVIRONMENT="development"
-              ENVIRONMENT_DISPLAY="Dev"
               ENV_SUFFIX="_DEV"
-              DOCKER_TAG="${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
-            elif [[ "$CIRCLE_TAG" == *"-rc"* ]]; then
+              echo "Using DEV environment"
+            elif [ -n "$CIRCLE_TAG" ] && [[ "$CIRCLE_TAG" == *"-rc"* ]]; then
               ENVIRONMENT="staging"
-              ENVIRONMENT_DISPLAY="Staging"
               ENV_SUFFIX="_STG"
-              DOCKER_TAG="${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_TAG}"
+              echo "Using STAGING environment"
             elif [ -n "$CIRCLE_TAG" ]; then
               ENVIRONMENT="production"
-              ENVIRONMENT_DISPLAY="Production"
               ENV_SUFFIX="_PRD"
-              DOCKER_TAG="${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_TAG}"
+              echo "Using PROD environment"
             else
+              echo "ERROR: cannot detect environment"
               exit 1
             fi
 
             rm -f .env
 
-            env | grep '_GLOBAL=' | grep -v '^GHA_' | while read line; do
-              key="${line%%=*}"
-              base="${key%_GLOBAL}"
-              echo "${base}=${line#*=}" >> .env
+            echo "-- GLOBAL VARS --"
+            env | grep "_GLOBAL" | grep -v "^GHA_" | while IFS='=' read -r k v; do
+              base="${k%_GLOBAL}"
+              echo "${base}=${v}" >> .env
             done
 
-            env | grep "${ENV_SUFFIX}=" | grep -v '^GHA_' | while read line; do
-              key="${line%%=*}"
-              base="${key%${ENV_SUFFIX}}"
-              echo "${base}=${line#*=}" >> .env
+            echo "-- ENVIRONMENT VARS ${ENV_SUFFIX} --"
+            env | grep "${ENV_SUFFIX}$" | grep -v "^GHA_" | while IFS='=' read -r k v; do
+              base="${k%${ENV_SUFFIX}}"
+              echo "${base}=${v}" >> .env
             done
 
-            echo "export DOCKER_TAG=\"$DOCKER_TAG\"" > env-exports
+            echo "Generated .env"
+            cat .env
+
+            DOCKER_TAG="${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
+
+            echo "export DOCKER_TAG=${DOCKER_TAG}" >> env-exports
+            echo "export ENVIRONMENT=${ENVIRONMENT}" >> env-exports
 
       - persist_to_workspace:
           root: .
           paths:
-            - env-exports
             - .env
+            - env-exports
 
       - run:
-          name: Make Gradle executable
+          name: Make Gradle wrapper executable
           command: chmod +x ./gradlew
 
       - run:
-          name: Build and test
-          command: ./gradlew build
+          name: Build & Test Kotlin project
           environment:
             RUN_DB_TESTS: << parameters.run_db_tests >>
+          command: ./gradlew build
 
       - setup_remote_docker
 
       - run:
           name: Docker build
           command: |
+            set -eo pipefail
             source env-exports
+
             EXTRA_ARGS=""
-            if [ -f .env ]; then
-              while IFS= read -r line; do
-                EXTRA_ARGS+=" --build-arg $line"
-              done < .env
-            fi
-            docker build . -t "$DOCKER_TAG" $EXTRA_ARGS
+            while IFS= read -r line; do
+              EXTRA_ARGS+=" --build-arg $line"
+            done < .env
+
+            docker build -t "${DOCKER_TAG}" ${EXTRA_ARGS} .
 
       - run:
-          name: Docker login & push
+          name: Login to DockerHub
+          command: |
+            echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+
+      - run:
+          name: Push Docker image
           command: |
             source env-exports
-            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-            docker push "$DOCKER_TAG"
-
-  # request_deployment_approval:
-  #   docker:
-  #     - image: cimg/python:3.11
-  #   steps:
-  #     - checkout
-  #     - attach_workspace:
-  #         at: .
-  #     - run:
-  #         name: Approval logic placeholder
-  #         command: |
-  #           if [ -f env-exports ]; then source env-exports; fi
-  #           if [ "$ENVIRONMENT" != "production" ]; then exit 0; fi
-
-  # kustomize_release:
-  #   docker:
-  #     - image: cimg/base:stable
-  #   environment:
-  #     GITHUB_SA_USER: devops_extension@outlook.com
-  #     GITHUB_SA_EMAIL: devops-extension
-  #     ENV_FILEPATH: ./envs/config.env
-  #   steps:
-  #     - checkout
-  #     - attach_workspace:
-  #         at: .
-  #     - run:
-  #         name: Decode env file placeholder
-  #         command: |
-  #           if [ -f env-exports ]; then source env-exports; fi
-  #     - run:
-  #         name: Install kustomize
-  #         command: |
-  #           curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-  #           sudo mv kustomize /usr/local/bin/
-  #     - run:
-  #         name: Apply kustomize edit placeholder
-  #         command: |
-  #           echo ""
+            docker push "${DOCKER_TAG}"
