@@ -3,22 +3,12 @@ version: 2.1
 workflows:
   ci_pipeline:
     jobs:
-      - odc
-      - build:
-          requires:
-            - odc
+      - build
+
 
 
 jobs:
 
-  odc:
-    docker:
-      - image: cimg/openjdk:17.0
-    steps:
-      - checkout
-      - run: |
-          echo "Running ODC Dependency Check"
-          echo "In real repo, use dependency-check CLI."
 
   build:
     docker:
