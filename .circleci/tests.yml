@@ -1,8 +1,5 @@
 version: 2.1
 
-orbs:
-  continuation: circleci/continuation@0.3.1
-
 parameters:
   run_db_tests:
     type: string
@@ -14,32 +11,32 @@ workflows:
       - run-tests:
           run_db_tests: << pipeline.parameters.run_db_tests >>
 
-      - continuation/continue:
-          name: run-build-pipeline
-          configuration_path: ".circleci/build.yml"
-          requires:
-            - run-tests
-          parameters: |
-            {"run_build_pipeline": true}
-
 jobs:
   run-tests:
+    docker:
+      - image: cimg/openjdk:17.0
+
     parameters:
       run_db_tests:
         type: string
         default: "0"
 
-    docker:
-      - image: cimg/openjdk:17.0
-
     steps:
       - checkout
       - run: chmod +x ./gradlew
-
       - run:
-          name: Run Unit Tests
-          command: |
-            echo "RUN_DB_TESTS = << parameters.run_db_tests >>"
-            ./gradlew test
+          name: Run Tests
+          command: ./gradlew test
           environment:
             RUN_DB_TESTS: << parameters.run_db_tests >>
+
+      - run:
+          name: Trigger build pipeline (API)
+          command: |
+            echo "Tests PASSED → starting build pipeline..."
+
+            curl -X POST \
+              -H "Circle-Token: ${CIRCLECI_TRIGGER_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"branch": "'"${CIRCLE_BRANCH}"'"}' \
+              https://circleci.com/api/v2/project/github/dahamahmed11/kotlin-circleci-hello/pipeline
