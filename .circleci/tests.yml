@@ -1,4 +1,5 @@
 version: 2.1
+setup: true
 
 orbs:
   continuation: circleci/continuation@0.3.1
@@ -18,8 +19,8 @@ workflows:
           configuration_path: ".circleci/build.yml"
           requires:
             - run-tests
-          parameters:
-            "run_build_pipeline": true
+          parameters: |
+            {"run_build_pipeline": true}
 
 jobs:
   run-tests:
