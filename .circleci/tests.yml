@@ -1,24 +1,9 @@
 version: 2.1
 
-parameters:
-  run_db_tests:
-    type: string
-    default: "0"
-
 workflows:
   tests_pipeline:
     jobs:
-      - sonarqube:
-          filters:
-            branches:
-              only: dev
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
-
-      - tests:
-          run_db_tests: << pipeline.parameters.run_db_tests >>
-          requires:
-            - sonarqube
+      - run-tests:
           filters:
             branches:
               only: dev
@@ -26,51 +11,31 @@ workflows:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
 
 jobs:
-
-  sonarqube:
+  run-tests:
     docker:
       - image: cimg/openjdk:17.0
     steps:
       - checkout
-      - run:
-          name: SonarQube scan
-          command: |
-            echo "Running SonarQube scan..."
-            if [ -z "$SONAR_HOST_URL" ] || [ -z "$SONAR_TOKEN" ]; then
-              echo "SONAR_HOST_URL or SONAR_TOKEN not set, skipping real scan."
-              exit 0
-            fi
-            echo "Here you would call the real sonar-scanner CLI."
-
-  tests:
-    docker:
-      - image: cimg/openjdk:17.0
-    parameters:
-      run_db_tests:
-        type: string
-        default: "1"
-    steps:
-      - checkout
 
       - run:
-          name: Make Gradle wrapper executable
+          name: Make Gradle executable
           command: chmod +x ./gradlew
 
       - run:
           name: Run unit tests
           command: ./gradlew test
           environment:
-            RUN_DB_TESTS: << parameters.run_db_tests >>
+            RUN_DB_TESTS: "0"
+
       - run:
-          name: Trigger BUILD pipeline
+          name: Trigger Build Pipeline
           command: |
-            if [ "$TESTS_STATUS" = "success" ]; then
-              curl -X POST \
-                -H "Circle-Token: $CIRCLECI_API_TOKEN" \
-                -H "Content-Type: application/json" \
-                -d '{ "branch": "dev" }' \
-                https://circleci.com/api/v2/project/github/dahamahmed11/kotlin-circleci-hello/pipeline
-            else
-              echo "Tests failed — not triggering build"
-              exit 1
-            fi
+            echo "Tests passed. Triggering build pipeline..."
+
+            curl -X POST \
+              -H "Circle-Token: ${CIRCLECI_TRIGGER_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"branch": "'"${CIRCLE_BRANCH}"'", "parameters": {"run_build_pipeline": true}}' \
+              https://circleci.com/api/v2/project/github/dahamahmed11/kotlin-circleci-hello/pipeline
+
+            echo "Build pipeline triggered."

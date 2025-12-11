@@ -1,14 +1,11 @@
 version: 2.1
-
 setup: true
 
 orbs:
   continuation: circleci/continuation@0.3.1
 
 workflows:
-  version: 2
-
-  run-tests:
+  load-tests-pipeline:
     jobs:
       - continuation/continue:
-          configuration_path: ".circleci/tests.yml"
+          configuration_path: ".circleci/tests_pipeline.yml"
