@@ -11,10 +11,16 @@ parameters:
 workflows:
   tests_pipeline:
     jobs:
-      - run-tests
+      - run-tests:
+          run_db_tests: << pipeline.parameters.run_db_tests >>
 
 jobs:
   run-tests:
+    parameters:
+      run_db_tests:
+        type: string
+        default: "0"
+
     docker:
       - image: cimg/openjdk:17.0
 
