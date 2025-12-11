@@ -154,6 +154,7 @@ jobs:
           command: ./gradlew build
           environment:
             RUN_DB_TESTS: << parameters.run_db_tests >>
+            
 
       - setup_remote_docker
 
@@ -162,6 +163,11 @@ jobs:
           command: |
             set -eo pipefail
             source env-exports
+            echo "ACR_NAME=$ACR_NAME"
+            echo "GHA_REGISTRY_NAME_DEV=$GHA_REGISTRY_NAME_DEV"
+            echo "GHA_REGISTRY_DOMAIN=$GHA_REGISTRY_DOMAIN"
+            echo "DOCKER_TAG=$DOCKER_TAG"
+
             echo "Building Docker image: ${DOCKER_TAG}"
             EXTRA_ARGS=""
             if [ -f .env ]; then
