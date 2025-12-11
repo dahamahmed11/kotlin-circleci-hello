@@ -1,34 +1,298 @@
 version: 2.1
 
+parameters:
+  run_db_tests:
+    type: string
+    default: "0"
+
+workflows:
+  build_pipeline:
+    jobs:
+      - build:
+          run_db_tests: << pipeline.parameters.run_db_tests >>
+          filters:
+            branches:
+              only: dev
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
+
 jobs:
+
   build:
     docker:
       - image: cimg/openjdk:17.0
+    parameters:
+      run_db_tests:
+        type: string
+        default: "0"
     steps:
       - checkout
+
+      - run:
+          name: Set environment (DEV / STG / PROD) & build .env / env-exports
+          command: |
+            set -eo pipefail
+
+            BRANCH="${CIRCLE_BRANCH:-}"
+            TAG="${CIRCLE_TAG:-}"
+            echo "BRANCH=${BRANCH}"
+            echo "TAG=${TAG}"
+
+            if [ -n "$BRANCH" ] && [ "$BRANCH" = "dev" ]; then
+              ENVIRONMENT="development"
+              ENVIRONMENT_DISPLAY="Dev"
+              AZ_SUBSCRIPTION_ID="$GHA_AZ_SUBSCRIPTION_ID_DEV"
+              RELEASE_REPO="$GHA_RELEASE_REPO_DEV"
+              HELM_RELEASE_REPO="$GHA_HELM_RELEASE_REPO"
+              HELM_FOLDER="$GHA_HELM_PROJECT_DEV"
+              KUSTOMIZE_FOLDER="$GHA_PROJECT_REPO_DEV"
+              ACR_NAME="${GHA_REGISTRY_NAME_DEV}.${GHA_REGISTRY_DOMAIN}"
+              ACR_USERNAME="$ACR_USERNAME_DEV"
+              ACR_PASSWORD="$ACR_PASSWORD_DEV"
+              DOCKER_TAG="${GHA_REGISTRY_NAME_DEV}.${GHA_REGISTRY_DOMAIN}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
+              HELM_VALUES_SECTION_NAME="$GHA_HELM_VALUES_SECTION_NAME"
+              HELM_TAG="$CIRCLE_SHA1"
+              ENV_SUFFIX="_DEV"
+              echo "Using DEV environment"
+            elif [ -n "$TAG" ] && [[ "$TAG" == *"-rc"* ]]; then
+              ENVIRONMENT="staging"
+              ENVIRONMENT_DISPLAY="Staging"
+              AZ_SUBSCRIPTION_ID="$GHA_AZ_SUBSCRIPTION_ID_STG"
+              RELEASE_REPO="$GHA_RELEASE_REPO_STG"
+              HELM_RELEASE_REPO="$GHA_HELM_RELEASE_REPO"
+              HELM_FOLDER="$GHA_HELM_PROJECT_STG"
+              KUSTOMIZE_FOLDER="$GHA_PROJECT_REPO_STG"
+              ACR_NAME="${GHA_REGISTRY_NAME_STG}.${GHA_REGISTRY_DOMAIN}"
+              ACR_USERNAME="$ACR_USERNAME_STG"
+              ACR_PASSWORD="$ACR_PASSWORD_STG"
+              DOCKER_TAG="${GHA_REGISTRY_NAME_STG}.${GHA_REGISTRY_DOMAIN}/${GHA_IMAGE_NAME}:${TAG}"
+              HELM_VALUES_SECTION_NAME="$GHA_HELM_VALUES_SECTION_NAME"
+              HELM_TAG="$TAG"
+              ENV_SUFFIX="_STG"
+              echo "Using STAGING environment"
+            elif [ -n "$TAG" ]; then
+              ENVIRONMENT="production"
+              ENVIRONMENT_DISPLAY="Production"
+              AZ_SUBSCRIPTION_ID="$GHA_AZ_SUBSCRIPTION_ID_PRD"
+              RELEASE_REPO="$GHA_RELEASE_REPO_PRD"
+              HELM_RELEASE_REPO="$GHA_HELM_RELEASE_REPO"
+              HELM_FOLDER="$GHA_HELM_PROJECT_PRD"
+              KUSTOMIZE_FOLDER="$GHA_PROJECT_REPO_PRD"
+              ACR_NAME="${GHA_REGISTRY_NAME_PRD}.${GHA_REGISTRY_DOMAIN}"
+              ACR_USERNAME="$ACR_USERNAME_PRD"
+              ACR_PASSWORD="$ACR_PASSWORD_PRD"
+              DOCKER_TAG="${GHA_REGISTRY_NAME_PRD}.${GHA_REGISTRY_DOMAIN}/${GHA_IMAGE_NAME}:${TAG}"
+              HELM_VALUES_SECTION_NAME="$GHA_HELM_VALUES_SECTION_NAME"
+              HELM_TAG="$TAG"
+              ENV_SUFFIX="_PRD"
+              echo "Using PROD environment"
+            else
+              echo "Unexpected environment (no dev branch and no matching tag)"
+              exit 1
+            fi
+
+            rm -f .env
+
+            echo "-- GLOBAL VARS --"
+            env | while IFS='=' read -r key value; do
+              if [[ "$key" == *_GLOBAL ]] && [[ "$key" != GHA_* ]]; then
+                base="${key%_GLOBAL}"
+                echo "${base}=${value}" >> .env
+              fi
+            done
+
+            echo "-- ${ENV_SUFFIX} VARS --"
+            env | while IFS='=' read -r key value; do
+              if [[ "$key" == *"${ENV_SUFFIX}" ]] && [[ "$key" != GHA_* ]]; then
+                base="${key%${ENV_SUFFIX}}"
+                echo "${base}=${value}" >> .env
+              fi
+            done
+
+            echo ".env generated:"
+            cat .env || true
+
+            if command -v base64 >/dev/null 2>&1; then
+              ENVFILE_BASE64=$(base64 -w0 .env 2>/dev/null || base64 .env)
+            else
+              echo "base64 not available, cannot encode .env"
+              ENVFILE_BASE64=""
+            fi
+
+            cat <<EOF > env-exports
+            export AZ_SUBSCRIPTION_ID="${AZ_SUBSCRIPTION_ID}"
+            export ENVIRONMENT="${ENVIRONMENT}"
+            export ENVIRONMENT_DISPLAY="${ENVIRONMENT_DISPLAY}"
+            export RELEASE_REPO="${RELEASE_REPO}"
+            export HELM_RELEASE_REPO="${HELM_RELEASE_REPO}"
+            export HELM_FOLDER="${HELM_FOLDER}"
+            export KUSTOMIZE_FOLDER="${KUSTOMIZE_FOLDER}"
+            export ACR_NAME="${ACR_NAME}"
+            export ACR_USERNAME="${ACR_USERNAME}"
+            export ACR_PASSWORD="${ACR_PASSWORD}"
+            export DOCKER_TAG="${DOCKER_TAG}"
+            export HELM_VALUES_SECTION_NAME="${HELM_VALUES_SECTION_NAME}"
+            export HELM_TAG="${HELM_TAG}"
+            export ENVFILE_BASE64="${ENVFILE_BASE64}"
+            EOF
+
+            echo "env-exports:"
+            cat env-exports
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - env-exports
+            - .env
+
       - run:
           name: Make Gradle wrapper executable
           command: chmod +x ./gradlew
 
       - run:
-          name: Build application
+          name: Build Kotlin project (RUN_DB_TESTS parameter)
           command: ./gradlew build
+          environment:
+            RUN_DB_TESTS: << parameters.run_db_tests >>
 
       - setup_remote_docker
 
       - run:
-          name: Docker build
+          name: Docker Build
           command: |
-            docker build -t "${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}" .
+            set -eo pipefail
+            source env-exports
+            echo "Building Docker image: ${DOCKER_TAG}"
+            EXTRA_ARGS=""
+            if [ -f .env ]; then
+              while IFS= read -r i; do
+                EXTRA_ARGS+=" --build-arg $i"
+              done < .env
+            fi
+            docker build . -f ./Dockerfile -t "${DOCKER_TAG}" ${EXTRA_ARGS}
 
       - run:
-          name: Docker login & push
+          name: Docker Login & Push
           command: |
-            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-            docker push "${DOCKERHUB_USERNAME}/${GHA_IMAGE_NAME}:${CIRCLE_SHA1}"
+            set -eo pipefail
+            source env-exports
+            if [ -n "${ACR_NAME}" ] && [ -n "${ACR_USERNAME}" ] && [ -n "${ACR_PASSWORD}" ]; then
+              echo "${ACR_PASSWORD}" | docker login "${ACR_NAME}" -u "${ACR_USERNAME}" --password-stdin
+              docker push "${DOCKER_TAG}"
+            else
+              echo "ACR credentials not set, skipping docker push."
+            fi
 
-workflows:
-  version: 2
-  build-and-push:
-    jobs:
-      - build
+  # request_deployment_approval:
+  #   docker:
+  #     - image: cimg/python:3.11
+  #   steps:
+  #     - checkout
+  #     - attach_workspace:
+  #         at: .
+  #     - run:
+  #         name: Load env & decide if approval required
+  #         command: |
+  #           set -eo pipefail
+  #           if [ -f env-exports ]; then
+  #             source env-exports
+  #           fi
+  #           echo "Environment: ${ENVIRONMENT} (${ENVIRONMENT_DISPLAY})"
+  #           if [ "${ENVIRONMENT}" != "production" ]; then
+  #             echo "Not production environment, skipping approval logic."
+  #             exit 0
+  #           fi
+  #           echo "Production environment - here we would run approval script."
+  #     - run:
+  #         name: Run approval script (placeholder)
+  #         command: |
+  #           echo "This is where approval-oneperson.py would run with SMTP/IMAP and approver list."
+
+  # kustomize_release:
+  #   docker:
+  #     - image: cimg/base:stable
+  #   environment:
+  #     GITHUB_SA_USER: devops_extension@outlook.com
+  #     GITHUB_SA_EMAIL: devops-extension
+  #     ENV_FILEPATH: ./envs/config.env
+  #   steps:
+  #     - checkout
+  #     - attach_workspace:
+  #         at: .
+  #     - run:
+  #         name: Load env & show settings
+  #         command: |
+  #           set -eo pipefail
+  #           if [ -f env-exports ]; then
+  #             source env-exports
+  #           fi
+  #           echo "Environment: ${ENVIRONMENT} (${ENVIRONMENT_DISPLAY})"
+  #           echo "Release repo: ${RELEASE_REPO}"
+  #           echo "Kustomize folder: ${KUSTOMIZE_FOLDER}"
+  #           echo "Docker tag: ${DOCKER_TAG}"
+  #           echo "ENV_FILEPATH: ${ENV_FILEPATH}"
+  #           echo "ENVFILE_BASE64 length: ${#ENVFILE_BASE64}"
+  #     - run:
+  #         name: Clone release repo
+  #         command: |
+  #           set -eo pipefail
+  #           source env-exports
+  #           rm -rf release-repo
+  #           if [ -z "${RELEASE_REPO}" ]; then
+  #             echo "RELEASE_REPO is not set, cannot clone."
+  #             exit 1
+  #           fi
+  #           git clone "git@github.com:${RELEASE_REPO}.git" release-repo
+  #           cd release-repo
+  #           git config user.name "${GITHUB_SA_USER}"
+  #           git config user.email "${GITHUB_SA_EMAIL}"
+  #           cd ..
+  #     - run:
+  #         name: Decode envFile and write config env into kustomize folder
+  #         command: |
+  #           set -eo pipefail
+  #           source env-exports
+  #           cd release-repo
+  #           if [ -z "${KUSTOMIZE_FOLDER}" ]; then
+  #             echo "KUSTOMIZE_FOLDER not set"
+  #             exit 1
+  #           fi
+  #           mkdir -p "${KUSTOMIZE_FOLDER}"
+  #           TARGET_PATH="${KUSTOMIZE_FOLDER}/${ENV_FILEPATH}"
+  #           mkdir -p "$(dirname "${TARGET_PATH}")"
+  #           if [ -n "${ENVFILE_BASE64}" ]; then
+  #             echo "${ENVFILE_BASE64}" | base64 -d > "${TARGET_PATH}" 2>/dev/null || echo "${ENVFILE_BASE64}" | base64 --decode > "${TARGET_PATH}"
+  #             echo "Wrote decoded env file to ${TARGET_PATH}"
+  #           else
+  #             echo "ENVFILE_BASE64 empty, writing existing .env if present"
+  #             if [ -f ../.env ]; then
+  #               cp ../.env "${TARGET_PATH}"
+  #             else
+  #               echo "No .env available, leaving ${TARGET_PATH} empty."
+  #               touch "${TARGET_PATH}"
+  #             fi
+  #           fi
+  #           cd ..
+  #     - run:
+  #         name: Install kustomize
+  #         command: |
+  #           set -eo pipefail
+  #           curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+  #           sudo mv kustomize /usr/local/bin/
+  #     - run:
+  #         name: Apply kustomize edit set image & push
+  #         command: |
+  #           set -eo pipefail
+  #           source env-exports
+  #           cd release-repo
+  #           if [ -z "${KUSTOMIZE_FOLDER}" ]; then
+  #             echo "KUSTOMIZE_FOLDER not set"
+  #             exit 1
+  #           fi
+  #           cd "${KUSTOMIZE_FOLDER}"
+  #           echo "Tag: ${DOCKER_TAG}"
+  #           kustomize edit set image "${DOCKER_TAG}"
+  #           git add .
+  #           git commit -m "Pushing to ${ENVIRONMENT} ${DOCKER_TAG}" || echo "Nothing to commit."
+  #           git push || echo "Git push failed or no changes."
+  #           ls -la
