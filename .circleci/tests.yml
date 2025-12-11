@@ -61,3 +61,16 @@ jobs:
           command: ./gradlew test
           environment:
             RUN_DB_TESTS: << parameters.run_db_tests >>
+      - run:
+          name: Trigger BUILD pipeline
+          command: |
+            if [ "$TESTS_STATUS" = "success" ]; then
+              curl -X POST \
+                -H "Circle-Token: $CIRCLECI_API_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d '{ "branch": "dev" }' \
+                https://circleci.com/api/v2/project/github/dahamahmed11/kotlin-circleci-hello/pipeline
+            else
+              echo "Tests failed — not triggering build"
+              exit 1
+            fi
