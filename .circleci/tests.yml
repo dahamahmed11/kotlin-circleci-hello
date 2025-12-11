@@ -1,14 +1,14 @@
 version: 2.1
 
+parameters:
+  run_db_tests:
+    type: string
+    default: "0"
+
 workflows:
   tests_pipeline:
     jobs:
-      - run-tests:
-          filters:
-            branches:
-              only: dev
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-rc.*)?$/
+      - run-tests
 
 jobs:
   run-tests:
@@ -16,26 +16,21 @@ jobs:
       - image: cimg/openjdk:17.0
     steps:
       - checkout
+      - run: chmod +x ./gradlew
 
       - run:
-          name: Make Gradle executable
-          command: chmod +x ./gradlew
-
-      - run:
-          name: Run unit tests
+          name: Execute Unit Tests
           command: ./gradlew test
           environment:
-            RUN_DB_TESTS: "0"
+            RUN_DB_TESTS: << parameters.run_db_tests >>
 
       - run:
           name: Trigger Build Pipeline
           command: |
-            echo "Tests passed. Triggering build pipeline..."
+            echo "Tests PASSED → triggering build pipeline..."
 
             curl -X POST \
               -H "Circle-Token: ${CIRCLECI_TRIGGER_TOKEN}" \
               -H "Content-Type: application/json" \
               -d '{"branch": "'"${CIRCLE_BRANCH}"'", "parameters": {"run_build_pipeline": true}}' \
               https://circleci.com/api/v2/project/github/dahamahmed11/kotlin-circleci-hello/pipeline
-
-            echo "Build pipeline triggered."
