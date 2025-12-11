@@ -1,5 +1,5 @@
 version: 2.1
-
+setup: false
 parameters:
   run_db_tests:
     type: string
