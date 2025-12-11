@@ -19,7 +19,7 @@ workflows:
           requires:
             - run-tests
           parameters:
-            run_build_pipeline : true
+            "run_build_pipeline": true
 
 jobs:
   run-tests:
