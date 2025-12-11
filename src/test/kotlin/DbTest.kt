@@ -5,8 +5,11 @@ class DbTest {
 
     @Test
     fun testDatabaseQuery() {
-        if (System.getenv("RUN_DB_TESTS") != "1") {
-            println("Skipping DB tests because RUN_DB_TESTS != 1")
+
+        val runDbTests = System.getenv("RUN_DB_TESTS") ?: "0"
+
+        if (runDbTests != "1") {
+            println("Skipping DB tests because RUN_DB_TESTS != 1 (actual: $runDbTests)")
             return
         }
 

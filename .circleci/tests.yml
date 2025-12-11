@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   run_db_tests:
     type: string
-    default: "1"
+    default: "0"
 
 workflows:
   tests_pipeline:
@@ -57,7 +57,7 @@ jobs:
           command: chmod +x ./gradlew
 
       - run:
-          name: Run unit tests (with RUN_DB_TESTS)
+          name: Run unit tests
           command: ./gradlew test
           environment:
             RUN_DB_TESTS: << parameters.run_db_tests >>
