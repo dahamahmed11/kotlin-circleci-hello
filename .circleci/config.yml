@@ -6,45 +6,7 @@ orbs:
   continuation: circleci/continuation@0.3.1
 
 workflows:
-  choose_pipeline:
+  run-tests:
     jobs:
-      - decide
-jobs:
-  decide:
-    docker:
-      - image: cimg/base:current
-    steps:
-      - checkout
-
-      - run:
-          name: Install CircleCI CLI + continuation plugin
-          command: |
-            echo "Installing CircleCI CLI..."
-            curl -sSL https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | bash
-
-            echo "Installing continuation plugin..."
-            circleci plugin install continuation
-
-            circleci version
-            circleci plugin ls
-
-      - run:
-          name: Decide which pipeline to run
-          command: |
-            echo "Branch: $CIRCLE_BRANCH"
-            echo "Tag: $CIRCLE_TAG"
-            echo "run_build_pipeline: $run_build_pipeline"
-
-            if [ "$run_build_pipeline" = "true" ]; then
-              PIPELINE_FILE=".circleci/build_pipeline.yml"
-            else
-              PIPELINE_FILE=".circleci/tests_pipeline.yml"
-            fi
-
-            echo "Using: $PIPELINE_FILE"
-
-            circleci continuation run \
-              -c "$PIPELINE_FILE" \
-              -p "{\"run_build_pipeline\": \"$run_build_pipeline\"}"
-
-            exit 0
+      - continuation/continue:
+          configuration_path: ".circleci/tests.yml"
