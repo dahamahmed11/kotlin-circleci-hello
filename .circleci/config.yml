@@ -12,9 +12,21 @@ workflows:
 jobs:
   decide:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/base:current
     steps:
       - checkout
+
+      - run:
+          name: Install CircleCI CLI + continuation plugin
+          command: |
+            echo "Installing CircleCI CLI..."
+            sudo curl -L "https://github.com/CircleCI-Public/circleci-cli/releases/download/v0.1.23266/circleci-cli_0.1.23266_linux_amd64.tar.gz" \
+              -o circleci.tar.gz
+            sudo tar -xzf circleci.tar.gz -C /usr/local/bin
+            sudo chmod +x /usr/local/bin/circleci
+
+            echo "Installing continuation plugin..."
+            circleci plugin install continuation
 
       - run:
           name: Decide which pipeline to run
