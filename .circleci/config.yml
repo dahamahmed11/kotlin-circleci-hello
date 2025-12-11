@@ -14,8 +14,6 @@ workflows:
     jobs:
       - continuation/continue:
           configuration_path: ".circleci/build.yml"
-  tests_pipeline:
-    jobs:
       - run-tests:
           run_db_tests: << pipeline.parameters.run_db_tests >>
       - continuation/continue:
