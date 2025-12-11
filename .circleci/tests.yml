@@ -18,8 +18,8 @@ workflows:
           configuration_path: ".circleci/build.yml"
           requires:
             - run-tests
-          parameters: |
-            {"run_build_pipeline": true}
+          parameters:
+            "run_build_pipeline": true
 
 jobs:
   run-tests:
