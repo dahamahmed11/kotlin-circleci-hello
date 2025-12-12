@@ -150,17 +150,6 @@ jobs:
           paths:
             - env-exports
             - .env
-      - run: 
-          name: Debug ENV vars for Docker Tag
-          command: |
-            source env-exports
-            echo "---- DEBUG ENV ----"
-            echo "ACR_NAME=${ACR_NAME}"
-            echo "GHA_REGISTRY_NAME_DEV=${GHA_REGISTRY_NAME_DEV}"
-            echo "GHA_REGISTRY_DOMAIN=${GHA_REGISTRY_DOMAIN}"
-            echo "GHA_IMAGE_NAME=${GHA_IMAGE_NAME}"
-            echo "DOCKER_TAG=${DOCKER_TAG}"
-
 
       - run:
           name: Make Gradle wrapper executable
