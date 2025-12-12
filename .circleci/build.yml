@@ -125,7 +125,7 @@ jobs:
               ENVFILE_BASE64=""
             fi
 
-            cat <<EOF > env-exports
+            cat \<<EOF > env-exports
             export AZ_SUBSCRIPTION_ID="${AZ_SUBSCRIPTION_ID}"
             export ENVIRONMENT="${ENVIRONMENT}"
             export ENVIRONMENT_DISPLAY="${ENVIRONMENT_DISPLAY}"
