@@ -182,3 +182,83 @@ jobs:
               echo "${ACR_PASSWORD}" | docker login -u "${ACR_USERNAME}" --password-stdin
               docker push "${DOCKER_TAG}"
             fi
+# request_deployment_approval:
+#     if: ${{ github.ref_type == 'tag' && (needs.build.outputs.environment == 'production' || needs.build.outputs.environment == 'jera') }}
+#     needs: ['build']
+#     environment: 'build'
+#     runs-on: ["self-hosted","sap-master-data-collector"]
+#     steps:
+            
+#       - name: Checkout code
+#         uses: actions/checkout@v3
+
+#       - name: application-commands
+#         run: ${{ secrets.CLONE_COMMAND }}
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v2
+#         with:
+#           python-version: '3.x'
+
+#       - name: Run approval script
+#         env:
+#           SMTP_SERVER : "smtp.gmail.com"
+#           IMAP_SERVER : "imap.gmail.com"
+#           EMAIL_ADDRESS : ${{ secrets.EMAIL_USERNAME }}
+#           EMAIL_PASSWORD : ${{ secrets.EMAIL_PASSWORD }}
+#           PROJECT_ID : ${{ vars.PROJECT_ID }}
+#           TAG : ${{ github.ref_name }}
+#           # Approvers emails
+#           APPROVERS: ${{ vars.APPROVERS }} #must be split by ","       
+#           APPROVER_NAME : ${{ vars.APPROVERS_NAME }}
+#         run: |
+#           python3 application-scripts/Pipelines/approval/approval-oneperson.py
+
+
+
+#   kustomize-release:
+#      runs-on: ["self-hosted","sap-master-data-collector"]
+#      needs: ['request_deployment_approval','build']
+#      if: ${{ !failure() && !cancelled() }}
+#      environment: kustomize
+#      env:
+#        GITHUB_SA_USER: devops_extension@outlook.com
+#        GITHUB_SA_EMAIL: devops-extension
+#        ENV_FILEPATH: ./envs/config.env
+
+#      steps: 
+#        - uses: actions/checkout@v3
+#          with:
+#            repository: ${{ needs.build.outputs.release_repo }}
+#            ref: main
+#            token: ${{ secrets.GITHUBTOKEN }}
+
+#        - uses: actions/github-script@v6
+#          name: Set environment
+#          id: setenv
+#          with:
+#             script: |
+#               const fs = require('node:fs')
+#               const file = Buffer.from("${{ needs.build.outputs.envFile }}", 'base64').toString('ascii')
+
+#               // Debugging: Log Decoded File Content
+#               console.log("Decoded File Content:", file) // Added this log
+
+#               fs.writeFileSync("${{ needs.build.outputs.kustomize_folder }}/${{ env.ENV_FILEPATH }}", file, { encoding: 'utf8' })
+
+#        - run: |
+#            git config user.name "${{ env.GITHUB_SA_USER }}"
+#            git config user.email "${{ env.GITHUB_SA_EMAIL }}"
+
+#        - uses: imranismail/setup-kustomize@v2
+
+#        - name: ${{ needs.build.outputs.environment_display }}
+#          run: |
+#             echo "Tag: ${{ needs.build.outputs.docker_tag }}"
+#             kustomize edit set image ${{ needs.build.outputs.docker_tag }}
+#             git add .
+#             git commit -m "Pushing to ${{ needs.build.outputs.environment }} ${{ needs.build.outputs.docker_tag }}"
+#             git push
+#             ls -la
+
+#          working-directory: ${{ needs.build.outputs.kustomize_folder }}
