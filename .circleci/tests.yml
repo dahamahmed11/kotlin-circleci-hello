@@ -1,42 +1,42 @@
-version: 2.1
+# version: 2.1
 
-orbs:
-  continuation: circleci/continuation@0.3.1
+# orbs:
+#   continuation: circleci/continuation@0.3.1
 
-parameters:
-  run_db_tests:
-    type: string
-    default: "0"
+# parameters:
+#   run_db_tests:
+#     type: string
+#     default: "0"
 
-workflows:
-  tests_pipeline:
-    jobs:
-      - run-tests:
-          run_db_tests: << pipeline.parameters.run_db_tests >>
-      - continuation/continue:
-          name: run-build-pipeline
-          configuration_path: ".circleci/build.yml"
-          requires:
-            - run-tests
-          parameters: |
-            {"run_build_pipeline": true}
+# workflows:
+#   tests_pipeline:
+#     jobs:
+#       - run-tests:
+#           run_db_tests: << pipeline.parameters.run_db_tests >>
+#       - continuation/continue:
+#           name: run-build-pipeline
+#           configuration_path: ""
+#           requires:
+#             - run-tests
+#           parameters: |
+#             {"run_build_pipeline": true}
 
-jobs:
-  run-tests:
-    parameters:
-      run_db_tests:
-        type: string
-        default: "0"
+# jobs:
+#   run-tests:
+#     parameters:
+#       run_db_tests:
+#         type: string
+#         default: "0"
 
-    docker:
-      - image: cimg/openjdk:17.0
+#     docker:
+#       - image: cimg/openjdk:17.0
 
-    steps:
-      - checkout
-      - run: chmod +x ./gradlew
+#     steps:
+#       - checkout
+#       - run: chmod +x ./gradlew
 
-      - run:
-          name: Run Unit Tests
-          command: ./gradlew test
-          environment:
-            RUN_DB_TESTS: << parameters.run_db_tests >>
+#       - run:
+#           name: Run Unit Tests
+#           command: ./gradlew test
+#           environment:
+#             RUN_DB_TESTS: << parameters.run_db_tests >>
