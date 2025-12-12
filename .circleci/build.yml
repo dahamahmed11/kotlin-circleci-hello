@@ -177,7 +177,5 @@ jobs:
           name: Docker Login & Push
           command: |
             source env-exports
-            if [ -n "${ACR_NAME}" ]; then
-              echo "${ACR_PASSWORD}" | docker login -u "${ACR_USERNAME}" --password-stdin
-              docker push "${DOCKER_TAG}"
-            fi
+            echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+            docker push "${DOCKER_TAG}"
