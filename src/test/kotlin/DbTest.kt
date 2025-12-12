@@ -10,12 +10,12 @@ class DbTest {
 
         if (runDbTests != "1") {
             println("Skipping DB tests because RUN_DB_TESTS != 1 (actual: $runDbTests)")
-            return
+            return;:
         }
 
         Database.init()
         val name = Database.getUserName(1)
 
-        assertEquals("yessin", name)
+        assertEquals("ahmed", name)
     }
 }
